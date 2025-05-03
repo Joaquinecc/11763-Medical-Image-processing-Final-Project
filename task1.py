@@ -4,19 +4,11 @@ import pydicom
 import numpy as np
 import scipy
 from matplotlib import pyplot as plt, animation
-from pathlib import Path
 import os
-from skimage.transform import resize  
 from tqdm import tqdm 
+from utils import load_dcm_data,maximum_intensity_projection
 
-def load_dcm_data(image_path):
-    img_dcmset = []
-    for root, _, filenames in os.walk(image_path):
-        for filename in filenames:
-            dcm_path = os.path.join(root,filename)
-            dicom = pydicom.dcmread(dcm_path, force=True)
-            img_dcmset.append(dicom)
-    return img_dcmset
+
 
 def rotate_on_axial_plane(img_dcm: np.ndarray, angle_in_degrees: float) -> np.ndarray:
     """ Rotate the image on the axial plane. """
@@ -24,8 +16,6 @@ def rotate_on_axial_plane(img_dcm: np.ndarray, angle_in_degrees: float) -> np.nd
 def MIP_coronal_plane(img_dcm: np.ndarray) -> np.ndarray:
     """ Compute the maximum intensity projection on the coronal orientation. """
     return np.max(img_dcm, axis=1)
-def maximum_intensity_projection(image, axis=0):
-    return np.max(image, axis=axis)
 
 
 def create_seg_mask(dcm_mask,dcms,shape):
