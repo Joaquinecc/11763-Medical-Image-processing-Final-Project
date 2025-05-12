@@ -13,50 +13,60 @@ from utils import load_dcm_data,maximum_intensity_projection
 def rotate_on_axial_plane(img_dcm: np.ndarray, angle_in_degrees: float) -> np.ndarray:
     """ Rotate the image on the axial plane. """
     return scipy.ndimage.rotate(img_dcm, angle_in_degrees, axes=(1, 2), reshape=False)
-def MIP_coronal_plane(img_dcm: np.ndarray) -> np.ndarray:
-    """ Compute the maximum intensity projection on the coronal orientation. """
-    return np.max(img_dcm, axis=1)
 
 
-def create_seg_mask(dcm_mask,dcms,shape):
-    slice_index_dcm=[float(dcm.SliceLocation) for dcm in dcms]
+def create_seg_mask(dcm_mask,dcms_full_patient):
+    """
+    Create a mask pixel array of the same dimension as the the full patienc dmc. To achieve this we need to match first the 
+    slice index
+    """
+    #Sort all slice index
+    slice_index_dcm=[float(dcm.SliceLocation) for dcm in dcms_full_patient]
     slice_index_dcm.sort()
-    shape= combined_pixelarray.shape
+    #Slice index Mask
     slice_index_mask= [int(-a.PlanePositionSequence[0].ImagePositionPatient[-1]) for a in list(dcm_mask.PerFrameFunctionalGroupsSequence)]
-    min_index= min(slice_index_mask)
-    n_frames= int(dcm_mask.NumberOfFrames)
-    #incemental= float(dcm_mask.SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SpacingBetweenSlices)
-    start_index = slice_index_dcm.index(min_index)
-    end_index= start_index + n_frames
-    seg_mask = np.zeros(shape)
-    seg_mask[start_index:end_index] =  dcm_mask.pixel_array
+    initial_index_mask= min(slice_index_mask) #initial position
+    
+    #Find idex match
+    start_index=None
+    for i,slice_index_patiend in enumerate(slice_index_dcm):
+        if  abs(slice_index_patiend-initial_index_mask)<=1.25:
+            start_index = i
+
+    end_index= start_index + int(dcm_mask.NumberOfFrames)
+    shape_image=(len(dcms_full_patient),dcms_full_patient[0].Rows,dcms_full_patient[0].Columns)
+    #Create empty mask
+    seg_mask = np.zeros(shape_image)
+    #Fill with value
+    seg_mask[start_index:end_index] =  np.flip(dcm_mask.pixel_array,0) #A flip is necessary
     return seg_mask
 
 if __name__ == '__main__':
     os.makedirs('results/MIP/', exist_ok=True)
 
     dcm_path='RadCTTACEomics_1193-20250418T131346Z-001/RadCTTACEomics_1193/10_AP_Ax2.50mm'
-    dcms=load_dcm_data(dcm_path)
+    dcms_full_patient=load_dcm_data(dcm_path)
     #Sort by slice inde
-    dcms.sort(key = (lambda x: float(x.SliceLocation)))
+    dcms_full_patient.sort(key = (lambda x: float(x.SliceLocation)))
     # Stack DICOM images
-    combined_pixelarray = np.stack([x.pixel_array for x in dcms], axis=0)
+    combined_pixelarray = np.stack([x.pixel_array for x in dcms_full_patient], axis=0)
 
-
+    #Load tumor
     dmc_tumor_path='RadCTTACEomics_1193-20250418T131346Z-001/RadCTTACEomics_1193/10_AP_Ax2.50mm_ManualROI_Tumor.dcm'
     dcm_tumor=pydicom.dcmread(dmc_tumor_path)
+    maks_tumor = create_seg_mask(dcm_tumor, dcms_full_patient)
+
     #Load liver
     dmc_liver_path='RadCTTACEomics_1193-20250418T131346Z-001/RadCTTACEomics_1193/10_AP_Ax2.50mm_ManualROI_Liver.dcm'
     dcm_liver=pydicom.dcmread(dmc_liver_path)
-    maks_liver=create_seg_mask(dcm_liver,dcms,combined_pixelarray.shape)
-    maks_tumor = create_seg_mask(dcm_tumor, dcms, combined_pixelarray.shape)
+    maks_liver=create_seg_mask(dcm_liver,dcms_full_patient)
 
 
     #Aspect for plotting
     img_min = np.amin(combined_pixelarray)
     img_max = np.amax(combined_pixelarray)
-    slice_thickness= float(dcms[0].SliceThickness)
-    pixel_spacing=float(dcms[0].PixelSpacing[0])
+    slice_thickness= float(dcms_full_patient[0].SliceThickness)
+    pixel_spacing=float(dcms_full_patient[0].PixelSpacing[0])
     aspect=slice_thickness / pixel_spacing
     cm = matplotlib.colormaps['bone']
     fig, ax = plt.subplots()
