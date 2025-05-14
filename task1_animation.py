@@ -11,15 +11,33 @@ from utils import load_dcm_data,maximum_intensity_projection,sigmoid_contrast
 
 
 def rotate_on_axial_plane(img_dcm: np.ndarray, angle_in_degrees: float) -> np.ndarray:
-    """ Rotate the image on the axial plane. """
+    """
+    Rotate a 3D medical image around the axial plane (Z-axis).
+
+    Parameters:
+        img_dcm (np.ndarray): 3D volume (Z, Y, X).
+        angle_in_degrees (float): Rotation angle in degrees.
+
+    Returns:
+        np.ndarray: Rotated 3D volume.
+    """
     return scipy.ndimage.rotate(img_dcm, angle_in_degrees, axes=(1, 2), reshape=False)
 
 
 
 def create_seg_mask(dcm_mask,dcms_full_patient):
     """
-    Create a mask pixel array of the same dimension as the the full patienc dmc. To achieve this we need to match first the 
-    slice index
+    Create a segmentation mask aligned to a full patient volume.
+
+    This function aligns a multiframe segmentation DICOM to the full 3D volume by matching
+    their respective slice positions using DICOM metadata (SliceLocation and ImagePositionPatient).
+
+    Parameters:
+        dcm_mask: DICOM segmentation object with multiple frames.
+        dcms_full_patient: List of DICOM slices from the full patient scan.
+
+    Returns:
+        np.ndarray: 3D segmentation mask aligned to the patient volume.
     """
     #Sort all slice index
     slice_index_dcm=[float(dcm.SliceLocation) for dcm in dcms_full_patient]
@@ -44,12 +62,10 @@ def create_seg_mask(dcm_mask,dcms_full_patient):
 
 if __name__ == '__main__':
     os.makedirs('results/MIP/', exist_ok=True)
-
+    # Load and sort full patient volume
     dcm_path='RadCTTACEomics_1193-20250418T131346Z-001/RadCTTACEomics_1193/10_AP_Ax2.50mm'
     dcms_full_patient=load_dcm_data(dcm_path)
-    #Sort by slice inde
-    dcms_full_patient.sort(key = (lambda x: float(x.SliceLocation)))
-    # Stack DICOM images
+    dcms_full_patient.sort(key = (lambda x: float(x.SliceLocation))) #Sort by skuce index
     combined_pixelarray = np.stack([x.pixel_array for x in dcms_full_patient], axis=0)
 
     #Load tumor
@@ -62,17 +78,15 @@ if __name__ == '__main__':
     dcm_liver=pydicom.dcmread(dmc_liver_path)
     maks_liver=create_seg_mask(dcm_liver,dcms_full_patient)
 
-
-    img_min=0
-    img_max=800
-    #Aspect for plotting
-
+    #Clip Hue Value to focus on essential organs
+    img_min, img_max = 0, 800
+    # Set normalization and visualization parameters
     slice_thickness= float(dcms_full_patient[0].SliceThickness)
     pixel_spacing=float(dcms_full_patient[0].PixelSpacing[0])
     aspect=slice_thickness / pixel_spacing
     cm = matplotlib.colormaps['bone']
     fig, ax = plt.subplots()
-    n=12
+    n=12 # number of projections/frames
     cmap_bone = plt.get_cmap('bone')
     projections=[]
     # Loop through the images and process
@@ -85,11 +99,9 @@ if __name__ == '__main__':
         projection[projection <200]= img_min
 
         projection = (projection - img_min) / (img_max - img_min) #Normalize.
-        #Increse contrast for better visualization
-        projection=sigmoid_contrast(projection) 
-        projection= cmap_bone(projection)[..., :3] #Add Cbone color range
+        projection=sigmoid_contrast(projection)  #Increse contrast for better visualization
+        projection= cmap_bone(projection)[..., :3] #Add Cbone color range, ignore alpha value
 
-       
         # Rotate and project liver mask
         rotated_liver_mask = rotate_on_axial_plane(maks_liver, degree)
         rotated_liver_mask = maximum_intensity_projection(rotated_liver_mask,axis=1)
@@ -112,7 +124,8 @@ if __name__ == '__main__':
         mask=rotated_tumor_mask>1
         overlay_img [mask]=  overlay_img [mask]*(1-alpha ) + red * rotated_tumor_mask[..., np.newaxis][mask] * alpha
 
-
+        # Clip to valid range for imshow
+        overlay_img = np.clip(overlay_img, 0, 1)
         # Display the image with overlay
         plt.imshow(overlay_img, aspect=aspect)
         plt.axis('off')  # Turn off the axis
