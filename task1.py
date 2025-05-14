@@ -6,13 +6,14 @@ import scipy
 from matplotlib import pyplot as plt, animation
 import os
 from tqdm import tqdm 
-from utils import load_dcm_data,maximum_intensity_projection
+from utils import load_dcm_data,maximum_intensity_projection,sigmoid_contrast
 
 
 
 def rotate_on_axial_plane(img_dcm: np.ndarray, angle_in_degrees: float) -> np.ndarray:
     """ Rotate the image on the axial plane. """
     return scipy.ndimage.rotate(img_dcm, angle_in_degrees, axes=(1, 2), reshape=False)
+
 
 
 def create_seg_mask(dcm_mask,dcms_full_patient):
@@ -62,45 +63,58 @@ if __name__ == '__main__':
     maks_liver=create_seg_mask(dcm_liver,dcms_full_patient)
 
 
+    img_min=0
+    img_max=800
     #Aspect for plotting
-    img_min = np.amin(combined_pixelarray)
-    img_max = np.amax(combined_pixelarray)
+
     slice_thickness= float(dcms_full_patient[0].SliceThickness)
     pixel_spacing=float(dcms_full_patient[0].PixelSpacing[0])
     aspect=slice_thickness / pixel_spacing
     cm = matplotlib.colormaps['bone']
     fig, ax = plt.subplots()
-    n=6
+    n=8
     cmap_bone = plt.get_cmap('bone')
     projections=[]
     # Loop through the images and process
     for idx, degree in tqdm(enumerate(np.linspace(0, 360 * (n - 1) / n, num=n)), total=n, desc="Processing frames"):
-        rotated_img = rotate_on_axial_plane(combined_pixelarray, degree)
+        rotated_img = rotate_on_axial_plane(combined_pixelarray, int(degree))
         projection = maximum_intensity_projection(rotated_img,axis=1)
+
+        #CLip values to focus on essential tissues
+        projection[projection>=800]= img_max
+        projection[projection <200]= img_min
+
         projection = (projection - img_min) / (img_max - img_min) #Normalize.
-        projection= cmap_bone(projection)[..., :3] #Ignore aplha
-       
+        #Increse contrast for better visualization
+        projection=sigmoid_contrast(projection) 
+        projection= cmap_bone(projection)[..., :3] #Add Cbone color range
+
        
         # Rotate and project liver mask
         rotated_liver_mask = rotate_on_axial_plane(maks_liver, degree)
         rotated_liver_mask = maximum_intensity_projection(rotated_liver_mask,axis=1)
-        rotated_liver_mask = [0.0, 1.0, 0.0] * rotated_liver_mask[..., np.newaxis] #Green
-        rotated_liver_mask=rotated_liver_mask[...,:3]#Ignore alpha
 
-        # Rotate and project tumor mask
+        # # Rotate and project tumor mask
         rotated_tumor_mask = rotate_on_axial_plane(maks_tumor, degree)
         rotated_tumor_mask = maximum_intensity_projection(rotated_tumor_mask, axis=1)
-        rotated_tumor_mask = [1.0, 0.0, 0.0] * rotated_tumor_mask[..., np.newaxis]  # Red mask
-        rotated_tumor_mask = rotated_tumor_mask[..., :3]  # Ignore alpha
 
-        alpha=0.4
-        overlay_img= projection * (1 - alpha * rotated_liver_mask) + rotated_liver_mask * alpha
-        alpha=0.5
-        overlay_img = overlay_img * (1 - alpha * rotated_tumor_mask) + rotated_tumor_mask * alpha
 
-   
+        overlay_img=projection
+        #add each overalay
+        alpha=0.7
+        green=np.array([0.0, 1.0, 0.0])
+        mask=rotated_liver_mask>1
+        overlay_img [mask]=  overlay_img [mask]*(1-alpha ) + green * rotated_liver_mask[..., np.newaxis][mask] * alpha
+
+
+        alpha=0.7
+        red=np.array([1.0, 0.0, 0.0] )
+        mask=rotated_tumor_mask>1
+        overlay_img [mask]=  overlay_img [mask]*(1-alpha ) + red * rotated_tumor_mask[..., np.newaxis][mask] * alpha
+
+
         # Display the image with overlay
-        plt.imshow(overlay_img, cmap=cm, vmin=0, vmax=1, aspect=aspect)
+        plt.imshow(overlay_img, aspect=aspect)
         plt.axis('off')  # Turn off the axis
         plt.savefig(f'results/MIP/Projection_{idx}.png')  # Save image frame
         projections.append(overlay_img)  # Append for animation
