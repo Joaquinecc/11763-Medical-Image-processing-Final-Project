@@ -72,12 +72,12 @@ if __name__ == '__main__':
     aspect=slice_thickness / pixel_spacing
     cm = matplotlib.colormaps['bone']
     fig, ax = plt.subplots()
-    n=8
+    n=12
     cmap_bone = plt.get_cmap('bone')
     projections=[]
     # Loop through the images and process
     for idx, degree in tqdm(enumerate(np.linspace(0, 360 * (n - 1) / n, num=n)), total=n, desc="Processing frames"):
-        rotated_img = rotate_on_axial_plane(combined_pixelarray, int(degree))
+        rotated_img = rotate_on_axial_plane(combined_pixelarray, degree)
         projection = maximum_intensity_projection(rotated_img,axis=1)
 
         #CLip values to focus on essential tissues
