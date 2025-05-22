@@ -1,5 +1,4 @@
 import os
-import matplotlib
 import pydicom
 import numpy as np
 import scipy
@@ -95,7 +94,7 @@ def main(ct_path, tumor_path, liver_path, n):
         projection[projection >= 800] = img_max
         projection[projection < 200] = img_min
         projection = (projection - img_min) / (img_max - img_min)
-        projection = sigmoid_contrast(projection)   #Increse contrast for better visualization
+        pprojection = sigmoid_contrast(projection,cutoff=0.6,gain=6)   #Increse contrast for better visualization
         projection = cmap_bone(projection)[..., :3] #Add Cbone color range, ignore alpha value
 
         # Rotate and project liver mask
@@ -107,7 +106,7 @@ def main(ct_path, tumor_path, liver_path, n):
         rotated_tumor_mask = maximum_intensity_projection(rotated_tumor_mask, axis=1)
 
         overlay_img = projection
-        alpha = 0.7
+        alpha = 0.4
 
         green = np.array([0.0, 1.0, 0.0])
         mask = rotated_liver_mask > 1
