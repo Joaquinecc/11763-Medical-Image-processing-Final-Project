@@ -94,7 +94,7 @@ def main(ct_path, tumor_path, liver_path, n):
         projection[projection >= 800] = img_max
         projection[projection < 200] = img_min
         projection = (projection - img_min) / (img_max - img_min)
-        pprojection = sigmoid_contrast(projection,cutoff=0.6,gain=6)   #Increse contrast for better visualization
+        projection = sigmoid_contrast(projection,cutoff=0.6,gain=6)   #Increse contrast for better visualization
         projection = cmap_bone(projection)[..., :3] #Add Cbone color range, ignore alpha value
 
         # Rotate and project liver mask

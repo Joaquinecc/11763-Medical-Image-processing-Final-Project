@@ -132,7 +132,7 @@ def plot_coregistration_views(pixelarray_target: np.ndarray, pixelarray_moving: 
             pixelarray_moving[:, :, idx_sagittal]
         ]
 
-        for row_offset, (slices, label) in enumerate([(target_slices, 'Target'), (moving_slices, 'Input')]):
+        for row_offset, (slices, label) in enumerate([(target_slices, 'Reference'), (moving_slices, 'Input')]):
             row = view_set_idx * 2 + row_offset
             for col in range(3):
                 ax = axes[row, col]
