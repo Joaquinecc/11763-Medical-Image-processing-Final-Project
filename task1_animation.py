@@ -78,9 +78,9 @@ def main(ct_path, tumor_path, liver_path, n):
 
     # Normalization parameters
     img_min, img_max = 0, 800
-    slice_thickness = float(dcms_full_patient[0].SliceThickness)
+    spacing_between_slices = float(dcms_full_patient[0].SpacingBetweenSlices)
     pixel_spacing = float(dcms_full_patient[0].PixelSpacing[0])
-    aspect = slice_thickness / pixel_spacing
+    aspect = spacing_between_slices / pixel_spacing
     cmap_bone = plt.get_cmap('bone')
 
     projections = []
